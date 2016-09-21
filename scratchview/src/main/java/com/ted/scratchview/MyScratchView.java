@@ -12,7 +12,9 @@ import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
 import android.graphics.Rect;
+import android.os.AsyncTask;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewConfiguration;
@@ -58,6 +60,15 @@ public class MyScratchView extends View {
     private float mMotionY;
 
     private int mTouchSLop;
+
+    private onEraseListner mEraseListner;
+
+    private int[] mPixels;
+
+    //擦除70%即算是擦除完成
+    private final int mPercentComplete = 70;
+
+    private Boolean isCompleted = false;
 
     public MyScratchView(Context context) {
         this(context,null);
@@ -128,6 +139,8 @@ public class MyScratchView extends View {
         mMaskCanvas = new Canvas(mMaskBitmap);
         Rect rect = new Rect(0,0,w,h);
         mMaskCanvas.drawRect(rect,mMaskPaint);
+
+        mPixels = new int[w * h];
     }
 
     @Override
@@ -176,6 +189,8 @@ public class MyScratchView extends View {
 
             mErasePath.reset();
             mErasePath.moveTo(x, y);
+
+            new EraseTask().execute(getWidth(),getHeight());
         }
     }
 
@@ -196,5 +211,70 @@ public class MyScratchView extends View {
     public void reset(){
         createMask(getWidth(),getHeight());
         invalidate();
+    }
+
+    public void setOnEraseListner(onEraseListner listner){
+        mEraseListner = listner;
+    }
+
+    public interface onEraseListner {
+        /**
+         * 擦除中
+         */
+        void onProgress(float pert);
+
+        /**
+         * 擦除完成
+         */
+        void onComplete();
+
+    }
+
+    class EraseTask extends AsyncTask<Object, Float, Boolean>{
+
+        @Override
+        protected Boolean doInBackground(Object... params) {
+
+            int width = (int)params[0];
+            int height = (int)params[1];
+
+            int erasedPixels = 0;//被擦除的像素
+            int totalPixels = width * height;//像素总数
+
+            //第三个参数表示一行有多少个像素
+            mMaskBitmap.getPixels(mPixels,0,width,0,0,width,height);
+
+            for (int pos = 0; pos < totalPixels; pos ++){
+                if (mPixels[pos] == 0){ //透明的像素的值是0
+                    erasedPixels++;
+                }
+            }
+
+            float percent = Math.round(erasedPixels * 100/ totalPixels) ;
+
+            publishProgress(percent);
+
+            return percent >= mPercentComplete;
+        }
+
+        @Override
+        protected void onProgressUpdate(Float... values) {
+            super.onProgressUpdate(values);
+            if (mEraseListner != null){
+                float per = values[0];
+                mEraseListner.onProgress(per);
+            }
+        }
+
+        @Override
+        protected void onPostExecute(Boolean result) {
+            super.onPostExecute(result);
+            if (result && !isCompleted){
+                isCompleted = true;
+                if (mEraseListner != null){
+                    mEraseListner.onComplete();
+                }
+            }
+        }
     }
 }
