@@ -25,5 +25,14 @@
             erasedPixels++;
         }
     }
-    
+
+3. 几个方法的执行顺序
+ * onFinishInflate ->
+ * onMeasure ->
+ * onSizeChanged ->
+ * onLayout ->
+ * onMeasure ->
+ * onLayout ->
+ * onDraw
+ 
     
